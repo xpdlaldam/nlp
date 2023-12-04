@@ -430,12 +430,169 @@ y_pred = clf.predict(X_test)
 print(classification_report(y_test, y_pred))
 
 
-#### 11/26/2023 Stopwords cannot solve every nlp problem. Although there may be words that are not of major focus, we also don't want to ignore them. In this case we count how many words appear from the entire document and we call this "Document Frequency (DF)" = number of times term t is present in all docs ex) If we have 4 documents, the word "that" appeared in 3 docs. We assign a lower score for high  DF because it could be a generic term, hence
+#### 11/26/2023 Text Representation Using TF-IDF
+# Stopwords cannot solve every nlp problem. Although there may be words that are not of major focus, we also don't want to ignore them. In this case we count how many words appear from the entire document and we call this "Document Frequency (DF)" = number of times term t is present in all docs ex) If we have 4 documents, the word "that" appeared in 3 docs. We assign a lower score for high  DF because it could be a generic term, hence
 
-# IDF(t) = total documents / number of docs term t is present
+# IDF(t) = total documents / number of docs term t is present (DF(t))
 
 # We also want to consider word frequency but we also need to take into account "within" the same doc level. Think when there are 5000 words in doc1 but only 10 in doc2. We need to normalize them, hence 
 
 # TF(t,d) total number of term t being present in doc1 / total number of tokens in doc1, where "TF = Term Frequency", t = term, and d = doc. 
 
 # TF - IDF = TF(t,d) * IDF(t)
+
+### Limitations of TF-IDF
+## As n increases, dimensionality and sparsity increases
+## Doesn't capture relationships among words
+## Doesn't address out of vocab issue
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+corpus = [
+    "Thor eating pizza, Loki is eating pizza, Ironman ate pizza already",
+    "Apple is announcing new iphone tomorrow",
+    "Tesla is announcing new model-3 tomorrow",
+    "Google is announcing new pixel-6 tomorrow",
+    "Microsoft is announcing new surface tomorrow",
+    "Amazon is announcing new eco-dot tomorrow",
+    "I am eating biryani and you are eating grapes"
+]
+
+v = TfidfVectorizer()
+transformed_output = v.fit_transform(corpus)
+v.vocabulary_ # the numbers are indices
+
+dir(v)
+
+all_feature_names = v.get_feature_names() # get_feature_names_out is deprecated
+
+v.idf_
+
+# note that words like amazon and apple are higher than is
+for word in all_feature_names:
+    idx = v.vocabulary_.get(word)
+    print(f"{word} {v.idf_[idx]}")
+
+corpus[:2]
+transformed_output.toarray()[:2]
+
+
+#### 12/03/2023 Text Representation Using TF-IDF (continued)
+import pandas as pd
+
+### Import
+df = pd.read_csv("data/Ecommerce_data.csv")
+df.shape # (24_000, 2)
+df.head(5)
+df['label'].unique()
+df['label'].value_counts()
+
+### Convert categories to numeric
+df['label_num'] = df['label'].map({
+    'Household' : 0, 
+    'Books': 1, 
+    'Electronics': 2, 
+    'Clothing & Accessories': 3
+})
+
+### Packages
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+### W/o preprocessing
+## train_test_split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(
+    df['Text'], 
+    df['label_num'], 
+    test_size=0.2, 
+    random_state=1,
+    stratify=df['label_num']
+)
+y_train.value_counts()
+
+## Model 1. KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier
+clf1 = Pipeline([
+     ('vectorizer_tfidf', TfidfVectorizer()),    
+     ('knn', KNeighborsClassifier())         
+])
+
+clf1.fit(X_train, y_train)
+
+y_pred = clf1.predict(X_test)
+print(classification_report(y_test, y_pred))
+
+X_test[:3][8394]
+X_test[:3][19213]
+y_pred[:3]
+
+## Model 2. MultinomialNB
+from sklearn.naive_bayes import MultinomialNB
+clf2 = Pipeline([
+     ('vectorizer_tfidf', TfidfVectorizer()),    
+     ('multi nb', MultinomialNB())         
+])
+
+clf2.fit(X_train, y_train)
+
+y_pred2 = clf2.predict(X_test)
+print(classification_report(y_test, y_pred2))
+
+X_test[:3][8394]
+X_test[:3][19213]
+y_pred2[:3]
+
+## Model 3. RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
+clf3 = Pipeline([
+     ('vectorizer_tfidf', TfidfVectorizer()),    
+     ('rf nb', RandomForestClassifier())         
+])
+
+clf3.fit(X_train, y_train)
+
+y_pred3 = clf3.predict(X_test)
+print(classification_report(y_test, y_pred3))
+
+X_test[:3][8394]
+X_test[:3][19213]
+y_pred3[:3]
+
+### W/ preprocessing
+## Preprocessing function to remove stop words and lemmatization
+import spacy
+nlp = spacy.load("en_core_web_sm") 
+
+def preprocess(text):
+    doc = nlp(text)
+    filtered_tokens = []
+    for token in doc:
+        if token.is_stop or token.is_punct:
+            continue
+        filtered_tokens.append(token.lemma_)
+    
+    return " ".join(filtered_tokens) 
+
+df['preprocessed_txt'] = df['Text'].apply(preprocess) # takes 10 mins
+df
+
+## train_test_split
+X_train_prep, X_test_prep, y_train_prep, y_test_prep = train_test_split(
+    df['preprocessed_txt'], 
+    df['label_num'], 
+    test_size=0.2, 
+    random_state=1,
+    stratify=df['label_num']
+)
+
+## Model 3. RandomForestClassifier
+clf3.fit(X_train_prep, y_train_prep)
+
+y_pred3 = clf3.predict(X_test_prep)
+print(classification_report(y_test_prep, y_pred3))
+
+X_test_prep[:3][8394]
+X_test_prep[:3][19213]
+y_pred3[:3]
