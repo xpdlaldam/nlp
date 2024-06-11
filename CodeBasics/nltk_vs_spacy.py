@@ -596,3 +596,80 @@ print(classification_report(y_test_prep, y_pred3))
 X_test_prep[:3][8394]
 X_test_prep[:3][19213]
 y_pred3[:3]
+
+
+
+#### 12/04/2023 Word2Vec Part 2 | Implement word2vec in gensim | | Deep Learning Tutorial 42
+import gensim
+import pandas as pd
+
+df = pd.read_json("data/Cell_Phones_and_Accessories_5.json", lines=True)
+df
+
+df['reviewText'][0]
+gensim.utils.simple_preprocess(df['reviewText'][0])
+
+review_text = df['reviewText'].apply(gensim.utils.simple_preprocess)
+review_text
+
+model = gensim.models.Word2Vec(
+    window=10,
+    min_count=2, # only use sentences having at least two or more words
+    workers=4
+)
+model.build_vocab(review_text, progress_per=1_000)
+model.epochs # 5
+model.corpus_count # 194_439
+model.train(review_text, total_examples=model.corpus_count, epochs=model.epochs)
+model.save("saved_mod.model")
+model.wv.most_similar("bad")
+model.wv.similarity(w1="cheap", w2="inexpensive")
+model.wv.similarity(w1="great", w2="awesome")
+model.wv.similarity(w1="great", w2="shit")
+
+
+
+#### 12/10/2023 Word vectors in Spacy overview
+# cmd: !python -m spacy download en_core_web_lg
+import spacy
+nlp = spacy.load("en_core_web_lg")
+
+doc1 = nlp("doc cat banana asdfasdf")
+for token in doc1:
+    print(token.text, token.has_vector, token.is_oov)
+
+doc1[0].vector
+doc1[0].vector.shape # (300,)
+
+token1 = nlp("bread")
+token1.vector.shape
+token2 = nlp("sandwich burger car tiger human wheat")
+for token in token2:
+    print(f"{token.text} <-> {token1.text}:", token.similarity(token1))
+
+for token in token2:
+    print(f"{token1.text} <->{token.text}:", token1.similarity(token))
+
+def fun(doc1, doc2):
+    token1 = nlp(doc1)
+    token2 = nlp(doc2)
+    for token in token2:
+        print(f"{token1.text} <-> {token.text}:", token1.similarity(token))
+fun("bread", "sandwich burger")
+
+def print_similarity(doc1, doc2):
+    token1 = nlp(doc1)
+    token2 = nlp(doc2)
+    for token in token2:
+        print(f"{token1.text} <-> {token.text}:", token1.similarity(token))
+print_similarity("iphone", "samsung apple iphone dog")
+
+# using cosine_similarity
+king = nlp.vocab["king"].vector
+man = nlp.vocab["man"].vector
+woman = nlp.vocab["woman"].vector
+queen = nlp.vocab["queen"].vector
+result = king - man + woman
+
+from sklearn.metrics.pairwise import cosine_similarity
+cosine_similarity([result], [queen])
